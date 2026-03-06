@@ -20,8 +20,8 @@ This pulls the latest guides from [rmosolgo/graphql-ruby](https://github.com/rmo
 ## Development
 
 ```sh
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## License
