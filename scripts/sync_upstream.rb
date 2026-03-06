@@ -128,7 +128,7 @@ def process_file(src_path)
   if raw_fm
     starlight_fm = convert_frontmatter(raw_fm)
     fm_str = dump_frontmatter(starlight_fm)
-    new_content = "---\n#{fm_str}\n---\n#{body}"
+    new_content = fm_str.empty? ? body : "---\n#{fm_str}\n---\n#{body}"
   else
     new_content = body
   end
