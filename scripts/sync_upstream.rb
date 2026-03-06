@@ -6,11 +6,10 @@
 
 require "fileutils"
 require "open3"
+require "tmpdir"
 require "yaml"
 
 REPO_URL  = "https://github.com/rmosolgo/graphql-ruby.git"
-CLONE_DIR = "/tmp/graphql-ruby"
-GUIDES_DIR = File.join(CLONE_DIR, "guides")
 PROJECT_ROOT = File.expand_path("..", __dir__)
 DOCS_DIR = File.join(PROJECT_ROOT, "src", "content", "docs")
 
@@ -21,14 +20,9 @@ EXCLUDED_EXTS = %w[.html .png].freeze
 # ---------------------------------------------------------------------------
 # Git clone
 # ---------------------------------------------------------------------------
-def clone_upstream
-  if Dir.exist?(CLONE_DIR)
-    puts "Removing existing clone at #{CLONE_DIR}..."
-    FileUtils.rm_rf(CLONE_DIR)
-  end
-
-  puts "Shallow cloning #{REPO_URL}..."
-  out, status = Open3.capture2e("git", "clone", "--depth", "1", REPO_URL, CLONE_DIR)
+def clone_upstream(clone_dir)
+  puts "Shallow cloning #{REPO_URL} into #{clone_dir}..."
+  out, status = Open3.capture2e("git", "clone", "--depth", "1", REPO_URL, clone_dir)
   unless status.success?
     abort "git clone failed:\n#{out}"
   end
@@ -37,12 +31,12 @@ end
 # ---------------------------------------------------------------------------
 # File collection
 # ---------------------------------------------------------------------------
-def collect_md_files
-  Dir.glob(File.join(GUIDES_DIR, "**", "*.md")).select { |f| include_file?(f) }
+def collect_md_files(guides_dir)
+  Dir.glob(File.join(guides_dir, "**", "*.md")).select { |f| include_file?(f, guides_dir) }
 end
 
-def include_file?(path)
-  rel = path.sub("#{GUIDES_DIR}/", "")
+def include_file?(path, guides_dir)
+  rel = path.sub("#{guides_dir}/", "")
 
   # Skip files in excluded directories
   parts = rel.split("/")
@@ -148,8 +142,8 @@ end
 # ---------------------------------------------------------------------------
 # Write output
 # ---------------------------------------------------------------------------
-def write_output(src_path, content)
-  rel = src_path.sub("#{GUIDES_DIR}/", "")
+def write_output(src_path, content, guides_dir)
+  rel = src_path.sub("#{guides_dir}/", "")
   dest = File.join(DOCS_DIR, rel)
 
   FileUtils.mkdir_p(File.dirname(dest))
@@ -161,21 +155,24 @@ end
 # Main
 # ---------------------------------------------------------------------------
 def main
-  clone_upstream
+  Dir.mktmpdir("graphql-ruby-") do |clone_dir|
+    clone_upstream(clone_dir)
 
-  unless Dir.exist?(GUIDES_DIR)
-    abort "guides/ directory not found in cloned repo"
+    guides_dir = File.join(clone_dir, "guides")
+    unless Dir.exist?(guides_dir)
+      abort "guides/ directory not found in cloned repo"
+    end
+
+    files = collect_md_files(guides_dir)
+    puts "Found #{files.size} markdown files to sync."
+
+    files.each do |src|
+      content = process_file(src)
+      write_output(src, content, guides_dir)
+    end
+
+    puts "\nDone! #{files.size} files synced to src/content/docs/"
   end
-
-  files = collect_md_files
-  puts "Found #{files.size} markdown files to sync."
-
-  files.each do |src|
-    content = process_file(src)
-    write_output(src, content)
-  end
-
-  puts "\nDone! #{files.size} files synced to src/content/docs/"
 end
 
 main
