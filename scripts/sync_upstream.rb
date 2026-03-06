@@ -57,7 +57,7 @@ end
 # ---------------------------------------------------------------------------
 DELETE_KEYS = %w[layout doc_stub search section other].freeze
 
-def convert_frontmatter(raw_yaml)
+def convert_frontmatter(raw_yaml, path:)
   data = YAML.safe_load(raw_yaml) || {}
 
   starlight = {}
@@ -81,6 +81,8 @@ def convert_frontmatter(raw_yaml)
   end
 
   starlight
+rescue Psych::Exception => e
+  abort "frontmatter parse failed: #{path}\n#{e.message}"
 end
 
 def dump_frontmatter(hash)
@@ -126,7 +128,7 @@ def process_file(src_path)
 
   # Convert frontmatter
   if raw_fm
-    starlight_fm = convert_frontmatter(raw_fm)
+    starlight_fm = convert_frontmatter(raw_fm, path: src_path)
     fm_str = dump_frontmatter(starlight_fm)
     new_content = fm_str.empty? ? body : "---\n#{fm_str}\n---\n#{body}"
   else
