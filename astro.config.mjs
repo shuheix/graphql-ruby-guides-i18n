@@ -6,6 +6,9 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
 	site: 'https://shuheix.github.io',
 	base: '/graphql-ruby-guides-i18n',
+	redirects: {
+		'/': '/ja/',
+	},
 	integrations: [
 		starlight({
 			title: 'graphql-ruby guides i18n',
