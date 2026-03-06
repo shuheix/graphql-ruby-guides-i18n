@@ -4,22 +4,19 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://shuheix.github.io',
+	base: '/graphql-ruby-guides-i18n',
 	integrations: [
 		starlight({
-			title: 'My Docs',
-			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
+			title: 'graphql-ruby guides i18n',
+			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/shuheix/graphql-ruby-guides-i18n' }],
+			defaultLocale: 'en',
+			locales: {
+				en: { label: 'English' },
+				ja: { label: '日本語', lang: 'ja' },
+			},
 			sidebar: [
-				{
-					label: 'Guides',
-					items: [
-						// Each item here is one entry in the navigation menu.
-						{ label: 'Example Guide', slug: 'guides/example' },
-					],
-				},
-				{
-					label: 'Reference',
-					autogenerate: { directory: 'reference' },
-				},
+				{ label: 'Home', link: '/' },
 			],
 		}),
 	],
