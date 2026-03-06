@@ -106,6 +106,7 @@ def convert_template_tags(body, path:)
   # {{ "ClassName" | api_doc }}
   text.gsub!(/\{\{\s*"([^"]+)"\s*\|\s*api_doc\s*\}\}/) do
     klass = $1
+    warn "  [api_doc] #{path}: #{klass}"
     "[`#{klass}`](https://graphql-ruby.org/api-doc/#{klass})"
   end
 
