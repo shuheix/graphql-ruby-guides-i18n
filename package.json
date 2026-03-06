@@ -1,5 +1,6 @@
 {
-  "name": "",
+  "name": "graphql-ruby-guides-i18n",
+  "packageManager": "pnpm@10.18.1",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
