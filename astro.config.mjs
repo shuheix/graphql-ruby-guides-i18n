@@ -6,20 +6,28 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
 	site: 'https://shuheix.github.io',
 	base: '/graphql-ruby-guides-i18n',
-	redirects: {
-		'/': '/graphql-ruby-guides-i18n/ja/',
-	},
 	integrations: [
 		starlight({
-			title: 'graphql-ruby guides i18n',
+			title: 'graphql-ruby Guides i18n',
+			editLink: {
+				baseUrl: 'https://github.com/shuheix/graphql-ruby-guides-i18n/edit/main/',
+			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/shuheix/graphql-ruby-guides-i18n' }],
-			defaultLocale: 'en',
 			locales: {
-				en: { label: 'English' },
-				ja: { label: '日本語', lang: 'ja' },
+				root: {
+					label: 'English',
+					lang: 'en',
+				},
+				ja: {
+					label: '日本語',
+					lang: 'ja',
+				},
 			},
 			sidebar: [
-				{ label: 'Home', link: '/' },
+				{
+					label: 'Guides',
+					autogenerate: { directory: 'guides' },
+				},
 			],
 		}),
 	],
