@@ -94,11 +94,12 @@ end
 # Jekyll template tag conversion
 # ---------------------------------------------------------------------------
 
-def convert_template_tags(body)
+def convert_template_tags(body, path:)
   text = body.dup
 
   # {% internal_link "text", "/path" %}
   text.gsub!(/\{%\s*internal_link\s+"([^"]+)"\s*,\s*"([^"]+)"\s*,?\s*%\}/) do
+    warn "  [internal_link] #{path}: \"#{$1}\" -> #{$2}"
     "[#{$1}](#{$2})"
   end
 
@@ -136,7 +137,7 @@ def process_file(src_path)
   end
 
   # Convert template tags
-  new_content = convert_template_tags(new_content)
+  new_content = convert_template_tags(new_content, path: src_path)
 
   new_content
 end
