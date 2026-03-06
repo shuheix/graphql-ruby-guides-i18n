@@ -117,7 +117,7 @@ end
 # Process a single file
 # ---------------------------------------------------------------------------
 def process_file(src_path)
-  content = File.read(src_path)
+  content = File.read(src_path, encoding: "UTF-8")
 
   # Split frontmatter and body
   if content =~ /\A---\r?\n(.*?)\r?\n---\r?\n(.*)\z/m
@@ -151,7 +151,7 @@ def write_output(src_path, content, guides_dir)
   dest = File.join(DOCS_DIR, rel)
 
   FileUtils.mkdir_p(File.dirname(dest))
-  File.write(dest, content)
+  File.write(dest, content, mode: "w:UTF-8")
   puts "  wrote #{dest.sub("#{PROJECT_ROOT}/", "")}"
 end
 
