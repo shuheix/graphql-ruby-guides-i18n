@@ -7,7 +7,7 @@ export default defineConfig({
 	site: 'https://shuheix.github.io',
 	base: '/graphql-ruby-guides-i18n',
 	redirects: {
-		'/': '/ja/',
+		'/': '/graphql-ruby-guides-i18n/ja/',
 	},
 	integrations: [
 		starlight({
