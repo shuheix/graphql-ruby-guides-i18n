@@ -10,7 +10,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "translate": "ruby scripts/translate.rb",
-    "translate:dry-run": "ruby scripts/translate.rb --dry-run"
+    "translate:dry-run": "ruby scripts/translate.rb --dry-run",
+    "translate:batch": "ruby scripts/translate.rb --batch"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.37.6",
