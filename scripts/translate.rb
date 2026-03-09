@@ -5,10 +5,10 @@
 # Usage: ruby scripts/translate.rb [options]
 #
 # Environment:
-#   OPENAI_API_KEY  Required. OpenAI API key.
+#   OPENAI_API_KEY  Required. Set in .env file or as environment variable.
 #
 # Examples:
-#   OPENAI_API_KEY=$(bw get password openai-api-key) ruby scripts/translate.rb
+#   ruby scripts/translate.rb
 #   ruby scripts/translate.rb --dry-run
 #   ruby scripts/translate.rb --file getting_started.md
 
@@ -19,6 +19,23 @@ require "uri"
 require "optparse"
 require "fileutils"
 require "digest"
+
+# ---------------------------------------------------------------------------
+# .env loader
+# ---------------------------------------------------------------------------
+def load_dotenv
+  env_path = File.join(File.expand_path("..", __dir__), ".env")
+  return unless File.exist?(env_path)
+
+  File.foreach(env_path) do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?("#")
+    key, value = line.split("=", 2)
+    ENV[key] = value if key && value && !ENV.key?(key)
+  end
+end
+
+load_dotenv
 
 PROJECT_ROOT = File.expand_path("..", __dir__)
 DOCS_DIR = File.join(PROJECT_ROOT, "src", "content", "docs")
@@ -61,8 +78,11 @@ SYSTEM_PROMPT = <<~PROMPT
      argument, directive, input object, connection, edge, node, Relay, Dataloader, GraphQL-Ruby,
      introspection, authorization, middleware, plugin, hook, multiplex, batch, trace, tracing,
      lazy, loader, source, cache, broadcast, trigger, channel
-  7. **文体**: です/ます調で統一する。
-  8. **改行・空行**: 原文の構造をできるだけ維持する。
+  7. **見出し方針**: 見出しは日本語に翻訳し、文書内で方針を統一する（英語見出しと日本語見出しを混在させない）。
+  8. **アンカー整合性**: `#...` を含むリンクは、参照先見出しと整合するようにフラグメントを調整する。特に同一ファイル内リンク（`#...`）は必ず有効な見出しを参照させる。
+  9. **文体**: です/ます調で統一する。不自然な直訳は避け、技術文書として自然で簡潔な日本語にする。
+  10. **改行・空行**: 原文の構造をできるだけ維持する。
+  11. **最終自己確認**: 出力前に、(a) コードブロック不変、(b) URL不変、(c) 見出し方針の一貫性、(d) 同一ファイル内アンカーの整合性を確認する。
 PROMPT
 
 # ---------------------------------------------------------------------------
@@ -314,7 +334,6 @@ def call_openai(content, api_key, model, verbose: false)
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: content },
     ],
-    temperature: 0.3,
   }
 
   max_retries = 3
@@ -438,7 +457,7 @@ def main
   api_key = ENV["OPENAI_API_KEY"]
   unless api_key || opts.dry_run
     abort "Error: OPENAI_API_KEY environment variable is not set.\n" \
-          "Usage: OPENAI_API_KEY=$(bw get password openai_api_key) ruby scripts/translate.rb"
+          "Usage: Set OPENAI_API_KEY in .env or as environment variable."
   end
 
   source_files = collect_source_files(opts.file)
