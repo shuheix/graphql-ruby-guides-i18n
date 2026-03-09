@@ -477,7 +477,7 @@ def upload_jsonl_file(jsonl_content, api_key)
   uri = URI(FILES_API_URL)
   boundary = "----RubyBatchUpload#{rand(1_000_000)}"
 
-  body = ""
+  body = String.new
   body << "--#{boundary}\r\n"
   body << "Content-Disposition: form-data; name=\"purpose\"\r\n\r\n"
   body << "batch\r\n"
