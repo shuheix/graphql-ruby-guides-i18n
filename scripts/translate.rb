@@ -42,6 +42,7 @@ PROJECT_ROOT = File.expand_path("..", __dir__)
 DOCS_DIR = File.join(PROJECT_ROOT, "src", "content", "docs")
 JA_DIR = File.join(DOCS_DIR, "ja")
 PROGRESS_FILE = File.join(PROJECT_ROOT, ".translation_progress.json")
+BATCH_ID_FILE = File.join(PROJECT_ROOT, "tmp", ".current_batch_id")
 
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 BATCH_API_URL = "https://api.openai.com/v1/batches"
@@ -105,7 +106,7 @@ def parse_options
     o.on("--clean", "Clear progress file and start fresh") { opts.clean = true }
     o.on("--verbose", "Verbose logging") { opts.verbose = true }
     o.on("--batch", "Use Batch API (50% cost reduction)") { opts.batch = true }
-    o.on("--batch-check BATCH_ID", "Check status / collect results of an existing batch") { |v| opts.batch_check = v }
+    o.on("--batch-check [BATCH_ID]", "Check status / collect results (reads from tmp/.current_batch_id if omitted)") { |v| opts.batch_check = v || :from_file }
   end.parse!
 
   opts
@@ -781,8 +782,11 @@ def run_batch_mode(targets, api_key, opts, progress, source_files)
     abort "Error: #{batch_result[:error]}"
   end
   batch_id = batch_result[:batch_id]
+  FileUtils.mkdir_p(File.dirname(BATCH_ID_FILE))
+  File.write(BATCH_ID_FILE, batch_id)
   puts "  Batch created: #{batch_id}"
-  puts "  (Use --batch-check #{batch_id} to resume if this process is interrupted)"
+  puts "  Saved to #{BATCH_ID_FILE.sub("#{PROJECT_ROOT}/", "")}"
+  puts "  (Use --batch-check to resume if this process is interrupted)"
   puts ""
 
   # Step 4: Poll
@@ -889,9 +893,15 @@ def main
     unless api_key
       abort "Error: OPENAI_API_KEY environment variable is not set."
     end
+    batch_id = if opts.batch_check == :from_file
+      abort "Error: No batch ID file found at #{BATCH_ID_FILE.sub("#{PROJECT_ROOT}/", "")}" unless File.exist?(BATCH_ID_FILE)
+      File.read(BATCH_ID_FILE).strip
+    else
+      opts.batch_check
+    end
     progress = load_progress
-    puts "Checking batch #{opts.batch_check}..."
-    poll_and_collect(opts.batch_check, api_key, progress, opts)
+    puts "Checking batch #{batch_id}..."
+    poll_and_collect(batch_id, api_key, progress, opts)
     return
   end
 

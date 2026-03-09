@@ -22,5 +22,6 @@ pnpm-debug.log*
 
 # translation progress
 .translation_progress.json
+tmp/
 
 .idea
