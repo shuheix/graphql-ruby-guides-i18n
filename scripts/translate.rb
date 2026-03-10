@@ -20,7 +20,6 @@ require "optparse"
 require "fileutils"
 require "digest"
 require "set"
-
 # ---------------------------------------------------------------------------
 # .env loader
 # ---------------------------------------------------------------------------
@@ -57,6 +56,7 @@ MODEL_COSTS = {
 
 # HTTP status codes that should NOT be retried (client errors, auth errors)
 NON_RETRYABLE_CODES = %w[400 401 403 404].freeze
+VALIDATION_RETRIES = 3
 
 SYSTEM_PROMPT = <<~PROMPT
   あなたは技術文書の翻訳者です。英語の Markdown 本文を日本語に翻訳してください。
@@ -74,7 +74,7 @@ SYSTEM_PROMPT = <<~PROMPT
 
   1. **コードブロック** (``` で囲まれた部分): 一切変更しない。コード内容、コメント、diff ブロック、すべてそのまま保持する。
   2. **インラインコード** (`バッククォート`で囲まれた部分): 翻訳しない。
-  3. **リンク**: URL はそのまま保持する。表示テキストは翻訳する。ただしクラス名・メソッド名 (例: `GraphQL::Schema`) が表示テキストの場合は翻訳しない。
+  3. **Markdown リンクタグ**: 入力中の `<md-link id="N">...</md-link>` は必ず保持する。開始タグ・終了タグ・`id` 属性は残し、タグ内の表示テキストだけ翻訳する。
   4. **テンプレートタグ**: `{{ }}` や `{% %}` はそのまま保持する。
   5. **HTML タグ**: そのまま保持する。
   6. **技術用語**: 以下の用語は英語のまま残す（訳さない）:
@@ -86,7 +86,7 @@ SYSTEM_PROMPT = <<~PROMPT
   8. **アンカー整合性**: `#...` を含むリンクは、参照先見出しと整合するようにフラグメントを調整する。特に同一ファイル内リンク（`#...`）は必ず有効な見出しを参照させる。
   9. **文体**: です/ます調で統一する。不自然な直訳は避け、技術文書として自然で簡潔な日本語にする。
   10. **改行・空行**: 原文の構造をできるだけ維持する。
-  11. **最終自己確認**: 出力前に、(a) コードブロック不変、(b) URL不変、(c) 見出し方針の一貫性、(d) 同一ファイル内アンカーの整合性を確認する。
+  11. **最終自己確認**: 出力前に、(a) コードブロック不変、(b) `<md-link>` の個数と `id` 属性の保持、(c) 見出し方針の一貫性、(d) 同一ファイル内アンカーの整合性を確認する。
 PROMPT
 
 # ---------------------------------------------------------------------------
@@ -294,6 +294,57 @@ def strip_code_blocks(text)
   result.join
 end
 
+def process_outside_fenced_blocks(text)
+  result = []
+  buffer = []
+  in_block = false
+
+  text.each_line do |line|
+    if in_block
+      result << line
+      in_block = false if line.match?(/\A```\s*$/)
+    elsif line.match?(/\A```/)
+      result << yield(buffer.join) unless buffer.empty?
+      buffer.clear
+      result << line
+      in_block = true
+    else
+      buffer << line
+    end
+  end
+
+  result << yield(buffer.join) unless buffer.empty?
+  result.join
+end
+
+def protect_markdown_links(text)
+  link_urls = []
+
+  protected = process_outside_fenced_blocks(text) do |chunk|
+    chunk.gsub(/\[(.*?)\]\((.*?)\)/m) do
+      label = Regexp.last_match(1)
+      url = Regexp.last_match(2)
+      link_id = link_urls.size
+      link_urls << url
+      %(<md-link id="#{link_id}">#{label}</md-link>)
+    end
+  end
+
+  [protected, link_urls]
+end
+
+def restore_markdown_links(text, link_urls)
+  process_outside_fenced_blocks(text) do |chunk|
+    chunk.gsub(/<md-link\s+id="(\d+)"\s*>(.*?)<\/md-link>/m) do
+      link_id = Regexp.last_match(1).to_i
+      label = Regexp.last_match(2)
+      url = link_urls[link_id]
+      next Regexp.last_match(0) if url.nil?
+      "[#{label}](#{url})"
+    end
+  end
+end
+
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -331,15 +382,18 @@ end
 # ---------------------------------------------------------------------------
 # OpenAI API
 # ---------------------------------------------------------------------------
-def call_openai(content, api_key, model, verbose: false)
+def call_openai(content, api_key, model, verbose: false, extra_messages: nil)
   uri = URI(OPENAI_API_URL)
+
+  messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: content },
+  ]
+  messages.concat(extra_messages) if extra_messages
 
   body = {
     model: model,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: content },
-    ],
+    messages: messages,
   }
 
   max_retries = 3
@@ -417,31 +471,48 @@ def translate_file(src_path, api_key, model, verbose:)
   description = frontmatter["description"]
 
   # Build API input: body + title/description markers (frontmatter is NOT sent)
-  input = build_translation_input(body, title: title, description: description)
+  input_body, link_urls = protect_markdown_links(body)
+  input = build_translation_input(input_body, title: title, description: description)
 
-  result = call_openai(input, api_key, model, verbose: verbose)
-  return result if result[:error]
+  total_usage = { "prompt_tokens" => 0, "completion_tokens" => 0, "total_tokens" => 0 }
+  extra_messages = nil
+  last_error = nil
 
-  # Parse API output
-  translated_title, translated_desc, translated_body = parse_translation_output(
-    result[:text],
-    has_title: !title.nil?,
-    has_description: !description.nil?
-  )
+  VALIDATION_RETRIES.times do |attempt|
+    result = call_openai(input, api_key, model, verbose: verbose, extra_messages: extra_messages)
+    return result if result[:error]
 
-  # Validate translated body against source body
-  validation_errors = validate_translation(body, translated_body)
-  if validation_errors.any?
-    return { error: "Validation failed: #{validation_errors.join('; ')}", usage: result[:usage] }
+    usage = result[:usage] || {}
+    %w[prompt_tokens completion_tokens total_tokens].each { |k| total_usage[k] += usage[k].to_i }
+
+    translated_title, translated_desc, translated_body = parse_translation_output(
+      result[:text],
+      has_title: !title.nil?,
+      has_description: !description.nil?
+    )
+    translated_body = restore_markdown_links(translated_body, link_urls)
+
+    validation_errors = validate_translation(body, translated_body)
+    if validation_errors.empty?
+      ja_fm = frontmatter.dup
+      ja_fm["title"] = translated_title if title && translated_title
+      ja_fm["description"] = translated_desc if description && translated_desc
+
+      final = build_output_content(ja_fm, translated_body)
+      return { text: final, usage: total_usage }
+    end
+
+    last_error = "Validation failed: #{validation_errors.join('; ')}"
+    break if attempt == VALIDATION_RETRIES - 1
+
+    warn "  Retry #{attempt + 2}/#{VALIDATION_RETRIES} after validation error: #{validation_errors.join('; ')}" if verbose
+    extra_messages = [
+      { role: "assistant", content: result[:text] },
+      { role: "user", content: "前回の出力は検証に失敗しました。エラー: #{validation_errors.join('; ')}。元の入力を保ったまま、特に `<md-link id=\"N\">...</md-link>` を1つも欠落させず、最初から全文を出力し直してください。" },
+    ]
   end
 
-  # Reconstruct frontmatter: preserve all keys, only replace title/description
-  ja_fm = frontmatter.dup
-  ja_fm["title"] = translated_title if title && translated_title
-  ja_fm["description"] = translated_desc if description && translated_desc
-
-  final = build_output_content(ja_fm, translated_body)
-  { text: final, usage: result[:usage] }
+  { error: last_error, usage: total_usage }
 end
 
 # ---------------------------------------------------------------------------
@@ -455,7 +526,8 @@ def build_batch_jsonl(targets, model)
 
     title = frontmatter["title"]
     description = frontmatter["description"]
-    input = build_translation_input(body, title: title, description: description)
+    input_body, _link_urls = protect_markdown_links(body)
+    input = build_translation_input(input_body, title: title, description: description)
 
     request = {
       custom_id: rel,
@@ -672,6 +744,8 @@ def process_batch_results(output_content, error_content, progress, opts)
         has_title: !title.nil?,
         has_description: !description.nil?
       )
+      _input_body, link_urls = protect_markdown_links(body)
+      translated_body = restore_markdown_links(translated_body, link_urls)
 
       validation_errors = validate_translation(body, translated_body)
       if validation_errors.any?
