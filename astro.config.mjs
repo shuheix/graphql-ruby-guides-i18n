@@ -13,8 +13,9 @@ export default defineConfig({
 				baseUrl: 'https://github.com/shuheix/graphql-ruby-guides-i18n/edit/main/',
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/shuheix/graphql-ruby-guides-i18n' }],
+			defaultLocale: 'en',
 			locales: {
-				root: {
+				en: {
 					label: 'English',
 					lang: 'en',
 				},

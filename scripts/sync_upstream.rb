@@ -148,7 +148,7 @@ end
 # ---------------------------------------------------------------------------
 def write_output(src_path, content, guides_dir)
   rel = src_path.sub("#{guides_dir}/", "")
-  dest = File.join(DOCS_DIR, rel)
+  dest = File.join(DOCS_DIR, "en", rel)
 
   FileUtils.mkdir_p(File.dirname(dest))
   File.write(dest, content, mode: "w:UTF-8")

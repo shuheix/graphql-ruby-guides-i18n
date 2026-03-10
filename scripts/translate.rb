@@ -39,6 +39,7 @@ load_dotenv
 
 PROJECT_ROOT = File.expand_path("..", __dir__)
 DOCS_DIR = File.join(PROJECT_ROOT, "src", "content", "docs")
+EN_DIR = File.join(DOCS_DIR, "en")
 JA_DIR = File.join(DOCS_DIR, "ja")
 PROGRESS_FILE = File.join(PROJECT_ROOT, ".translation_progress.json")
 BATCH_ID_FILE = File.join(PROJECT_ROOT, "tmp", ".current_batch_id")
@@ -124,18 +125,16 @@ end
 def collect_source_files(single_file = nil)
   if single_file
     validate_file_option!(single_file)
-    path = File.join(DOCS_DIR, single_file)
+    path = File.join(EN_DIR, single_file)
     abort "File not found: #{path}" unless File.exist?(path)
     [path]
   else
-    Dir.glob(File.join(DOCS_DIR, "**", "*.md"))
-       .reject { |f| f.start_with?("#{JA_DIR}/") || f.start_with?("#{JA_DIR}\\") }
-       .sort
+    Dir.glob(File.join(EN_DIR, "**", "*.md")).sort
   end
 end
 
 def relative_path(full_path)
-  full_path.sub("#{DOCS_DIR}/", "")
+  full_path.sub("#{EN_DIR}/", "")
 end
 
 # ---------------------------------------------------------------------------
@@ -231,7 +230,7 @@ end
 def should_translate?(rel_path, progress, opts)
   return true if opts.force
 
-  src_path = File.join(DOCS_DIR, rel_path)
+  src_path = File.join(EN_DIR, rel_path)
   ja_path = File.join(JA_DIR, rel_path)
   current_sha = file_sha256(src_path)
 
@@ -672,8 +671,8 @@ def safe_custom_id?(custom_id)
   return false if custom_id.nil? || custom_id.empty?
   return false if custom_id.include?("..") || custom_id.start_with?("/")
 
-  resolved = File.expand_path(File.join(DOCS_DIR, custom_id))
-  resolved.start_with?("#{DOCS_DIR}/") && !resolved.start_with?("#{JA_DIR}/")
+  resolved = File.expand_path(File.join(EN_DIR, custom_id))
+  resolved.start_with?("#{EN_DIR}/")
 end
 
 def process_batch_results(output_content, error_content, progress, opts)
@@ -707,7 +706,7 @@ def process_batch_results(output_content, error_content, progress, opts)
       end
 
       processed_ids << custom_id
-      src_path = File.join(DOCS_DIR, custom_id)
+      src_path = File.join(EN_DIR, custom_id)
 
       unless File.exist?(src_path)
         warn "  Warning: source file not found for #{custom_id}, skipping"
@@ -781,7 +780,7 @@ def process_batch_results(output_content, error_content, progress, opts)
       warn "  Warning: unsafe custom_id '#{custom_id}' in error file, skipping"
       next
     end
-    src_path = File.join(DOCS_DIR, custom_id)
+    src_path = File.join(EN_DIR, custom_id)
     sha = File.exist?(src_path) ? file_sha256(src_path) : nil
     error_msg = error.is_a?(Hash) ? error["message"] : error.to_s
     warn "  ERROR [#{custom_id}]: #{error_msg}"

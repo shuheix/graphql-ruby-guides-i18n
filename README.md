@@ -26,7 +26,7 @@ pnpm run dev
 
 ## License
 
-The original guide content in `src/content/docs/` (excluding `ja/`) is derived from [graphql-ruby](https://github.com/rmosolgo/graphql-ruby) by Robert Mosolgo, licensed under the MIT License:
+The original guide content in `src/content/docs/en/` is derived from [graphql-ruby](https://github.com/rmosolgo/graphql-ruby) by Robert Mosolgo, licensed under the MIT License:
 
 > Copyright 2015 Robert Mosolgo
 >
